@@ -16,7 +16,7 @@ from A_weighting import A_weighting
 #API_KEY = '0ObUvSI2uqV1_x2Yw0MkX6V83Ca9nu9LMSG_NyzgK9Q'
 
 samplerate = 44100 #samples per second
-t = 10 #seconds
+t = 1 #seconds
 samples = samplerate * t
 
 B, A = A_weighting(samplerate)
@@ -34,42 +34,66 @@ calibration = meteor_calibration_50
 
 #Setup audio recording:
 pyau = pyaudio.PyAudio()
-stream = pyau.open(format=pyaudio.paInt16, channels=1 , rate=samplerate, input=True, frames_per_buffer=samples, input_device_index=1)
+#stream = pyau.open(format=pyaudio.paInt16, channels=1 , rate=samplerate, input=True, frames_per_buffer=samples, input_device_index=1)
+
+
+'''TEST'''
+CHUNK = 1024
+FORMAT = pyaudio.paInt16
+CHANNELS = 2
+RATE = 44100
+RECORD_SECONDS = 1
+WAVE_OUTPUT_FILENAME = "output.wav"
+
+stream = pyau.open(format=FORMAT,
+                channels=CHANNELS,
+                rate=RATE,
+                input=True,
+                frames_per_buffer=CHUNK)
+
+
+
+'''END TEST'''
+
+
+
+
+
 
 def sound_level_meter():
 
  #       feed = api.feeds.get(FEED_ID)
  #       datastream = get_datastream(feed)
+    try:
 
+        
+            # Read raw microphone data:
+            try:
+                    rawsamps = stream.read(samples)
+            except IOError, ioe:
+                    print "IOError: " + str(ioe)
+                    #continue
+            # Convert raw data to NumPy array:
+            chunk = numpy.fromstring(rawsamps, dtype=numpy.int16)
 
-        while True:
-                # Read raw microphone data:
-                try:
-                        rawsamps = stream.read(samples)
-                except IOError, ioe:
-                        print "IOError: " + str(ioe)
-                        continue
-                # Convert raw data to NumPy array:
-                chunk = numpy.fromstring(rawsamps, dtype=numpy.int16)
+            #Compute leq:
+            #leq = compute_leq(chunk) + calibration
 
-                #Compute leq:
-                #leq = compute_leq(chunk) + calibration
+            #Compute LAeq
+            filteredChunk = lfilter(B, A, chunk)
+            lAeq = compute_leq(filteredChunk) + calibration
 
-                #Compute LAeq
-                filteredChunk = lfilter(B, A, chunk)
-                lAeq = compute_leq(filteredChunk) + calibration
+            #print "Leq" + str(t) + "s  = " + str(leq) + " dB"
+            #print str(lAeq) #"LAeq" + str(t) + "s = " + str(lAeq) + " dB(A)"
+            #print ""
+            return lAeq
+    except KeyboardInterrupt:
+        stream.stop_stream()
+        stream.close()
+        pyau.terminate()
 
-                #print "Leq" + str(t) + "s  = " + str(leq) + " dB"
-                print "LAeq" + str(t) + "s = " + str(lAeq) + " dB(A)"
-                #print ""
+        
                 
-                #Try to upload the value to Xively
-#                datastream.current_value = round(lAeq, 2)
-#                datastream.at = datetime.datetime.utcnow()
-#                try:
-#                  datastream.update()
-#                except requests.HTTPError as e:
-#                  print "HTTPError({0}): {1}".format(e.errno, e.strerror)
 
 def compute_leq(chunk):
                 #Loudness (code from analyse.loudness()):
@@ -99,6 +123,7 @@ def compute_leq(chunk):
 
 
 def init():
+        
         print "Setting gain to 12dB / 50%:"
         call(["amixer", "-c", "1", "set", "Mic", "capture", str(mic_gain) + "dB"])
       
@@ -106,4 +131,4 @@ def init():
         sound_level_meter()
 
 
-init()
+#init()
